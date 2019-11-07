@@ -1,7 +1,7 @@
 # Installing the Linkerd Service Mesh on Civo Managed Kubernetes
 
 ## Introduction
-One of the most commonly-asked questions from our community users of our managed Kubernetes service is about replacing the default ingress controller, `Traefik`, with a controller or service mesh of their choice. While `k3s`, the Kubernetes service underlying the Civo Kubernetes platform,
+`k3s`, the Kubernetes service underlying the Civo Kubernetes platform, automatically bundles `Traefik` as the default ingress controller in its installation. One of the most commonly-asked questions from our community users of our managed Kubernetes service is about replacing `Traefik`, with a controller or service mesh of their choice. 
 
 Why would you want to replace `Traefik` on your cluster? If you are looking to experiment with features of a particular service mesh is one reason (and the reason I started writing this guide!), but another one is to get native observability of inter-service communication provided by specialised service mesh applications.
 
@@ -42,8 +42,10 @@ kube-system   traefik-d869575c8-hrfcv      1/1     Running     0           5m
 The above output shows that `traefik` has been installed (the process has completed) and it is successfully running.
 
 ## Removing Traefik
-We will need to remove the *deployment* and then the *service* that run Traefik on our cluster. This is done through two `kubectl` commands on our cluster. 
+We will need to remove the *job*, *deployment* and then the *service* that run Traefik on our cluster. This is done through three `kubectl` commands on our cluster. 
 ```
+$ kubectl delete pod --namespace kube-system helm-install-traefik-77dx7
+pod "helm-install-traefik-77dx7" deleted
 $ kubectl delete -n kube-system deploy/traefik
 deployment.extensions "traefik" deleted
 $ kubectl delete -n kube-system svc traefik
@@ -55,7 +57,6 @@ Give it a minute or so to wind down the service, and run the `get pods --all-nam
 $ kubectl get pods --all-namespaces
 NAMESPACE     NAME                         READY   STATUS      RESTARTS   AGE
 kube-system   coredns-66f496764-flbsm      1/1     Running     0          33m
-kube-system   helm-install-traefik-77dx7   0/1     Completed   0          33m
 ```
 Sweet! We have successfully uninstalled Traefik. Now to deploy the service mesh we want.
 
@@ -182,9 +183,14 @@ linkerd       linkerd-prometheus-c6fd999fc-vl45z        2/2     Running     0   
 That's them running alright!
 
 ### Basic Linkerd Usage
+Linkerd provide a great tutorial on using the service mesh on their site with an example application called `emojivoto`. All their documentation references this app, so it's a handy reference guide. [Follow the steps here](https://linkerd.io/2/getting-started/#step-5-install-the-demo-app) to deploy it and watch Linkerd do its thing.
 
+Linkerd includes `Grafana` to display data collected by `Prometheus` that will allow you to visualise traffic and identify issues on your cluster. You can start it at any time from your terminal by running the following command, which will transparently open port-forwarding from your cluster and open your browser to the dashboard:
+```
+$ linkerd dashboard &
+```
 
 ## Conclusion
 By following this guide, you have easily removed the `Traefik` installation that is bundled by default to `k3s` installations, and installed `Linkerd` as a Service Mesh for runtime debugging, observability and reliability. If you would want to use another Service Mesh, you would just diverge from the guide after the Removing Traefik section and follow the official documentation for the Service Mesh you want.
 
-Let us know on Twitter @civocloud if you have a favourite service mesh solution - and why!
+Let us know on Twitter [@civocloud](https://twitter.com/civocloud) if you have a favourite service mesh solution - and why!
