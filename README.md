@@ -5,14 +5,16 @@
 
 Why would you want to replace `Traefik` on your cluster? If you are looking to experiment with features of a particular service mesh is one reason (and the reason I started writing this guide!), but another one is to get native observability of inter-service communication provided by specialised service mesh applications.
 
-This guide will cover the removal of Traefik, and replacement of it as the Ingress Controller and Service Mesh by Linkerd, using the Civo command-line interface. You can, of course, use another service mesh of your choice instead - popular choices for this are [Istio](https://istio.io/), [Consul](https://www.hashicorp.com/products/consul/service-mesh) and the Traefik-based [Maesh](https://mae.sh/). See their respective official documentation for installation instructions. You can install Maesh on your cluster with one click straight from the Civo Kubernetes App Store.
+This guide will cover the removal of Traefik, and replacement of it as the Ingress Controller and Service Mesh by Linkerd, using the Civo command-line interface. You can, of course, use another service mesh of your choice instead - popular choices for this are [Istio](https://istio.io/), [Consul](https://www.hashicorp.com/products/consul/service-mesh) and the Traefik-based [Maesh](https://mae.sh/). You can install Maesh on your cluster with one click straight from the [Civo Kubernetes App Store](https://www.civo.com/learn/deploying-applications-through-the-civo-kubernetes-marketplace).
+
+If you want to use any of the other available service meshes, see their respective official documentation for installation instructions, which you will be able to follow once you remove `Traefik` according to the instructions below.
 
 ## Pre-Requisites
 You will need the following to get started:
 - A Civo account and access to the managed Kubernetes beta. You can [apply for the beta here](https://www.civo.com/kube100) - mention this guide in your application!
 - The [Civo Command-Line tool installed](https://www.civo.com/learn/kubernetes-cluster-administration-using-civo-cli) with your API key added.
 - `kubectl` [downloaded and set up](https://kubernetes.io/docs/tasks/tools/install-kubectl/).
-- `kubectx` [to handle context-switching](https://github.com/ahmetb/kubectx) if you are managing multiple clusters.
+- Optional: `kubectx` [to handle context-switching](https://github.com/ahmetb/kubectx) if you are managing multiple clusters.
 
 ## What is a Service Mesh?
 Typically, a Service Mesh uses processes known as sidecars deployed alongside and containerised separately from service processes. Effectively mini-proxies, these sidecars watch traffic to and from services on your nodes, and provide visibility and control. The notable exception to this is Maesh, mentioned above, which does not function via sidecars. The broad functionality remains the same, though.
