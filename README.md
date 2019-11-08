@@ -1,13 +1,12 @@
 # Installing the Linkerd Service Mesh on Civo Managed Kubernetes
 
 ## Introduction
-`k3s`, the Kubernetes service underlying the Civo Kubernetes platform, automatically bundles `Traefik` as the default ingress controller in its installation. One of the most commonly-asked questions from our community users of our managed Kubernetes service is about replacing `Traefik`, with a controller or service mesh of their choice. 
 
-Why would you want to replace `Traefik` on your cluster? If you are looking to experiment with features of a particular service mesh is one reason (and the reason I started writing this guide!), but another one is to get native observability of inter-service communication provided by specialised service mesh applications.
+The Civo managed Kubernetes platform allows you to implement the components you like to use on your cluster, including service meshes and other service components. While the [Civo Kubernetes marketplace](https://www.civo.com/learn/deploying-applications-through-the-civo-kubernetes-marketplace) offers a one-click install of the `Maesh` service mesh, you may want to install a different solution of your choice that is not offered on the marketplace. Whether it is for feature experimentation or preference one type of tool over another, it is a good idea to consider meshing the services on your Kubernetes cluster. With a service mesh, you will be able to get native observability of inter-service communication provided by the visualisation and analysis tools they bundle.
 
-This guide will cover the removal of Traefik, and replacement of it as the Ingress Controller and Service Mesh by Linkerd, using the Civo command-line interface. You can, of course, use another service mesh of your choice instead - popular choices for this are [Istio](https://istio.io/), [Consul](https://www.hashicorp.com/products/consul/service-mesh) and the Traefik-based [Maesh](https://mae.sh/). You can install Maesh on your cluster with one click straight from the [Civo Kubernetes App Store](https://www.civo.com/learn/deploying-applications-through-the-civo-kubernetes-marketplace).
+This guide will cover the installation of Linkerd, a Service Mesh, using the Civo command-line interface, as at the time of writing this was not available as a marketplace application. You can, of course, use another service mesh of your choice instead - popular choices for this are [Istio](https://istio.io/), [Consul](https://www.hashicorp.com/products/consul/service-mesh) and the Traefik-based [Maesh](https://mae.sh/). You can install Maesh on your cluster with one click straight from the [Civo Kubernetes App Store](https://www.civo.com/learn/deploying-applications-through-the-civo-kubernetes-marketplace).
 
-If you want to use any of the other available service meshes, see their respective official documentation for installation instructions, which you will be able to follow once you remove `Traefik` according to the instructions below.
+If you want to use any of the other available service meshes, see their respective official documentation for installation instructions, which you will be able to follow once you set up your cluster according to the instructions below.
 
 ## Pre-Requisites
 You will need the following to get started:
@@ -30,7 +29,7 @@ Merged config into ~/.kube/config and switched context to extra-spiral
 ```
 I already have a Kubernetes cluster on my account, so the tool has *merged* my configuration. Handily, using the combination of options `--wait --save --switch` will automatically change our cluster management context to the one that was just created. If you prefer to switch cluster contexts manually, use `kubectx <cluster-name>` after you have downloaded the KUBECONFIG.
 
-Let's see what we have running on our cluster straight out of the box. We shouldn't have anything except for what `k3s` bundles automatically:
+Let's see what we have running on our cluster straight out of the box. We shouldn't have anything except for what `k3s` bundles automatically, including the `traefik` ingress controller. An ingress controller is required by Linkerd:
 ```
 $ kubectl get pods --all-namespaces
 NAMESPACE     NAME                         READY   STATUS      RESTARTS   AGE
@@ -40,29 +39,6 @@ kube-system   svclb-traefik-l5bff          3/3     Running     0           5m
 kube-system   svclb-traefik-dwnr8          3/3     Running     0           5m
 kube-system   traefik-d869575c8-hrfcv      1/1     Running     0           5m
 ```
-
-The above output shows that `traefik` has been installed (the process has completed) and it is successfully running.
-
-## Removing Traefik
-We will need to remove the *job*, *deployment* and then the *service* that run Traefik on our cluster. This is done through three `kubectl` commands on our cluster. 
-```
-$ kubectl delete pod --namespace kube-system helm-install-traefik-77dx7
-pod "helm-install-traefik-77dx7" deleted
-$ kubectl delete -n kube-system deploy/traefik
-deployment.extensions "traefik" deleted
-$ kubectl delete -n kube-system svc traefik
-service "traefik" deleted
-```
-
-Give it a minute or so to wind down the service, and run the `get pods --all-namespaces` command again:
-```
-$ kubectl get pods --all-namespaces
-NAMESPACE     NAME                         READY   STATUS      RESTARTS   AGE
-kube-system   coredns-66f496764-flbsm      1/1     Running     0          33m
-```
-Sweet! We have successfully uninstalled Traefik. Now to deploy the service mesh we want.
-
-**Note:** As this guide removes a default application from a cluster, the cluster information page on your dashboard, as well as the cluster details command on the Civo CLI may still show `Traefik` as installed even after these steps. The service has been entirely removed, however.
 
 ## Installing Linkerd
 I will reproduce the steps I took to install Linkerd for this guide below, but you should always refer to the [official Linkerd documentation](https://linkerd.io/2/getting-started/) for the latest way to deploy it, as updates may introduce changes.
@@ -187,12 +163,31 @@ That's them running alright!
 ### Basic Linkerd Usage
 Linkerd provide a great tutorial on using the service mesh on their site with an example application called `emojivoto`. All their documentation references this app, so it's a handy reference guide. [Follow the steps here](https://linkerd.io/2/getting-started/#step-5-install-the-demo-app) to deploy it and watch Linkerd do its thing.
 
-Linkerd includes `Grafana` to display data collected by `Prometheus` that will allow you to visualise traffic and identify issues on your cluster. You can start it at any time from your terminal by running the following command, which will transparently open port-forwarding from your cluster and open your browser to the dashboard:
+Once you have added Linkerd to the service(s) you want on your cluster, you will be able to look at request details and their success percentage, for example:
+```
+$ linkerd -n emojivoto stat deploy
+NAME       MESHED   SUCCESS      RPS   LATENCY_P50   LATENCY_P95   LATENCY_P99   TCP_CONN
+emoji         1/1   100.00%   1.1rps           1ms           1ms           1ms          2
+vote-bot      1/1         -        -             -             -             -          -
+voting        1/1   100.00%   0.5rps           1ms           1ms           1ms          2
+web           1/1   100.00%   1.1rps           2ms           4ms           4ms          2
+```
+
+Another way to watch your cluster's requests at the individual pod or deployment level is to use the `linkerd tap` command such as `$ linkerd -n emojivoto tap deploy/web`. As the name "tap" suggests, though, this is going to show the flow of requests, so will quickly fill your screen!
+
+Linkerd includes a dashboard that bundles `Grafana` to display data collected by `Prometheus` that will allow you to visualise traffic and identify issues on your cluster without having to deal with streams of console data. You can start it at any time from your terminal by running the following command, which will transparently open port-forwarding from your cluster and open your browser to the dashboard:
 ```
 $ linkerd dashboard &
 ```
+![Linkerd Dashboard](linkerd-1.png)
+
+If you want to drill down to individual metrics, such as finding out why the success rate on "voting" is not completing 100% of the time, you can click through to "Grafana" and get more detail about each component:
+![Grafana display](grafana-1.png)
+
 
 ## Conclusion
-By following this guide, you have easily removed the `Traefik` installation that is bundled by default to `k3s` installations, and installed `Linkerd` as a Service Mesh for runtime debugging, observability and reliability. If you would want to use another Service Mesh, you would just diverge from the guide after the Removing Traefik section and follow the official documentation for the Service Mesh you want.
+By following this guide, you will have successfully installed `Linkerd` as a Service Mesh for runtime debugging, observability and reliability. If you would want to use another Service Mesh, follow the official documentation for the Service Mesh you want after the "Setting up your cluster" section.
+
+If you chose to follow the `emojivoto` guide for Linkerd usage, you will have learned about the basics of uncovering service issues and how to fix them.
 
 Let us know on Twitter [@civocloud](https://twitter.com/civocloud) if you have a favourite service mesh solution - and why!
